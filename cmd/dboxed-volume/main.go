@@ -1,4 +1,4 @@
-package dboxed_volume
+package main
 
 import (
 	"fmt"
@@ -14,9 +14,10 @@ import (
 type Cli struct {
 	flags.GlobalFlags
 
-	Run     commands.RunCmd     `cmd:"" help:"Download, unpack and run a box"`
-	Systemd commands.SystemdCmd `cmd:"" help:"Sub commands to control dboxed systemd integration"`
-	Runc    commands.RuncCmd    `cmd:"" help:"Run runc for a box"`
+	Init  commands.InitCmd  `cmd:"" help:"Initialize a volume"`
+	Mount commands.MountCmd `cmd:"" help:"Mount a volume"`
+
+	ResticBackup commands.ResticBackupCmd `cmd:"" help:"Backup via restic"`
 }
 
 func Execute() {
