@@ -14,7 +14,7 @@ import (
 type ResticBackupCmd struct {
 	Image string `help:"Specify the location of the volume image" type:"existingfile"`
 
-	Repository   string `help:"Restic repository"`
+	Repo         string `help:"Restic Repo"`
 	PasswordFile string `help:"Restic password file" type:"existingfile"`
 
 	Tag []string `help:"Restic tags"`
@@ -79,8 +79,8 @@ func (cmd *ResticBackupCmd) doBackup(tmpMnt string) error {
 		"-g", "tags",
 	}
 
-	if cmd.Repository != "" {
-		args = append(args, "-r", cmd.Repository)
+	if cmd.Repo != "" {
+		args = append(args, "-r", cmd.Repo)
 	}
 	if cmd.PasswordFile != "" {
 		args = append(args, "--password-file", cmd.PasswordFile)

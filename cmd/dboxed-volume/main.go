@@ -14,6 +14,11 @@ import (
 type Cli struct {
 	flags.GlobalFlags
 
+	Serve commands.ServeCmd `cmd:"" help:"Serve dboxed-volume"`
+
+	Repo   commands.RepoCmd   `cmd:"" help:"Repo commands"`
+	Volume commands.VolumeCmd `cmd:"" help:"Volume commands"`
+
 	Init  commands.InitCmd  `cmd:"" help:"Initialize a volume"`
 	Mount commands.MountCmd `cmd:"" help:"Mount a volume"`
 

@@ -1,0 +1,199 @@
+syntax = "proto3";
+
+option go_package = "github.com/dboxed/dboxed-volume/pkg/nats/dproto";
+import "google/protobuf/timestamp.proto";
+
+package dboxed_volume;
+
+message RepositoryCreateRequest {
+  string name = 1;
+  optional RepositoryConfigS3 s3 = 2;
+}
+
+message RepositoryCreateReply {
+  Repository repository = 1;
+}
+
+message RepositoryUpdateRequest {
+  string uuid = 1;
+  optional RepositoryConfigS3 s3 = 2;
+}
+
+message RepositoryUpdateReply {
+  Repository repository = 1;
+}
+
+message RepositoryByNameRequest {
+  string name = 1;
+}
+
+message RepositoryByNameReply {
+  Repository repository = 1;
+}
+
+message VolumeCreateRequest {
+  string repository_uuid = 1;
+  string name = 2;
+  int64 fs_size = 3;
+  string fs_type = 4;
+}
+
+message VolumeCreateReply {
+  Volume volume = 1;
+}
+
+message VolumeByNameRequest {
+  string repository_uuid = 1;
+  string name = 2;
+}
+
+message VolumeByNameReply {
+  Volume volume = 1;
+}
+
+message VolumeLockRequest {
+  string repository_uuid = 1;
+  string volume_uuid = 2;
+  optional string prev_lock_uuid = 3;
+}
+
+message VolumeLockReply {
+  Volume volume = 1;
+}
+
+message Repository {
+  string uuid = 1;
+  string name = 2;
+
+  RepositoryConfigS3 s3 = 3;
+}
+
+message RepositoryConfigS3 {
+  string endpoint = 1;
+  optional string region = 2;
+  string bucket = 3;
+  string access_key_id = 4;
+  string secret_access_key = 5;
+  string prefix = 6;
+}
+
+message Volume {
+  string uuid = 1;
+  string repository_uuid = 2;
+  string name = 3;
+  int64 fs_size = 4;
+  string fs_type = 5;
+  optional string latest_snapshot = 6;
+
+  optional VolumeLock lock = 7;
+}
+
+message VolumeLock {
+  string uuid = 1;
+  google.protobuf.Timestamp lock_time = 2;
+}
+
+////
+
+message S3ProxySmallPutRequest {
+  string repository_uuid = 1;
+  string object_name = 2;
+  bytes body = 3;
+}
+
+message S3ProxySmallPutReply {
+}
+
+message S3ProxyPresignGetRequest {
+  string repository_uuid = 1;
+  string object_name = 2;
+}
+
+message S3ProxyPresignGetReply {
+  string url = 1;
+  google.protobuf.Timestamp expires = 2;
+}
+
+message S3ProxyPresignPutRequest {
+  string repository_uuid = 1;
+  string object_name = 2;
+}
+
+message S3ProxyPresignPutReply {
+  string url = 1;
+  google.protobuf.Timestamp expires = 2;
+}
+
+message S3ProxyListObjectsRequest {
+  string repository_uuid = 1;
+  string prefix = 2;
+}
+
+message S3ProxyListObjectsReply {
+  repeated S3ObjectInfo objects = 1;
+  repeated string common_prefixes = 2;
+}
+
+message S3ProxyRemoveObjectRequest {
+  string repository_uuid = 1;
+  string object_name = 2;
+}
+
+message S3ProxyRemoveObjectReply {
+}
+
+message S3ProxyRenameObjectRequest {
+  string repository_uuid = 1;
+  string old_object_name = 2;
+  string new_object_name = 3;
+}
+
+message S3ProxyRenameObjectReply {
+}
+
+message S3ProxyCreateMultipartUploadRequest {
+  string repository_uuid = 1;
+  string object_name = 2;
+  int32 presigned_part_count = 3;
+}
+
+message S3ProxyCreateMultipartUploadReply {
+  string upload_id = 1;
+  repeated string presigned_upload_urls = 2;
+}
+
+message S3ProxyPresignMultipartUploadRequest {
+  string repository_uuid = 1;
+  string object_name = 2;
+  string upload_id = 3;
+  int32 start_part = 4;
+  int32 count = 5;
+}
+
+message S3ProxyPresignMultipartUploadReply {
+  repeated string urls = 1;
+}
+
+message S3ProxyCompleteMultipartUploadRequest {
+  string repository_uuid = 1;
+  string object_name = 2;
+  string upload_id = 3;
+  repeated S3CompletePart complete_parts = 4;
+}
+
+message S3CompletePart {
+  int32 part_numer = 1;
+  string etag = 2;
+}
+
+message S3ProxyCompleteMultipartUploadReply {
+}
+
+message S3ObjectInfo {
+  string key = 1;
+  int64 size = 2;
+  google.protobuf.Timestamp last_modified = 3;
+  string etag = 4;
+
+  string presigned_get_url = 5;
+}

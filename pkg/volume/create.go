@@ -29,8 +29,8 @@ func Create(opts CreateOptions) error {
 		return fmt.Errorf("image '%s' already exists, we won't overwrite it", opts.ImagePath)
 	}
 
-	if !slices.Contains(allowedFsTypes, opts.FsType) {
-		return fmt.Errorf("invalid fs-type, must be one of %s", strings.Join(allowedFsTypes, ", "))
+	if !slices.Contains(AllowedFsTypes, opts.FsType) {
+		return fmt.Errorf("invalid fs-type, must be one of %s", strings.Join(AllowedFsTypes, ", "))
 	}
 
 	loDevs, err := losetup.List()

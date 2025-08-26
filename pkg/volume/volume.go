@@ -7,7 +7,7 @@ import (
 	"github.com/dboxed/dboxed-volume/pkg/lvm"
 )
 
-var allowedFsTypes = []string{
+var AllowedFsTypes = []string{
 	"ext2",
 	"ext3",
 	"ext4",
