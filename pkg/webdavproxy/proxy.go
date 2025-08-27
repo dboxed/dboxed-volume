@@ -44,15 +44,15 @@ func NewProxy(nc *nats.Conn, repositoryUuid string, listenAddr string) (*Proxy, 
 	return p, nil
 }
 
-func (p *Proxy) Start(ctx context.Context) error {
+func (p *Proxy) Start(ctx context.Context) (net.Addr, error) {
 	listenAddr, err := net.ResolveTCPAddr("tcp", p.listenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	l, err := net.ListenTCP("tcp", listenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	slog.Info("starting webdav proxy", slog.Any("listenAddr", l.Addr().String()))
@@ -68,7 +68,11 @@ func (p *Proxy) Start(ctx context.Context) error {
 			slog.Error("webdav proxy server serve exited with error", slog.Any("error", err))
 		}
 	}()
-	return nil
+	return l.Addr(), nil
+}
+
+func (p *Proxy) Stop() error {
+	return p.httpServer.Close()
 }
 
 func (p *Proxy) handler() http.Handler {

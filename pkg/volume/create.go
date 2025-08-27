@@ -3,7 +3,6 @@ package volume
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -91,7 +90,7 @@ func Create(opts CreateOptions) error {
 		return err
 	}
 
-	fsDev := filepath.Join("/dev", vgName, volName)
+	fsDev := buildDevName(vgName, volName)
 	_, err = util.RunCommand(false, fmt.Sprintf("mkfs.%s", opts.FsType), fsDev)
 	if err != nil {
 		return err

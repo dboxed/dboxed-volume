@@ -2,6 +2,8 @@ package volume
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/dboxed/dboxed-volume/pkg/losetup"
 	"github.com/dboxed/dboxed-volume/pkg/lvm"
@@ -80,4 +82,18 @@ func (v *Volume) Close(detach bool) error {
 		v.attachedLoDev = false
 	}
 	return nil
+}
+
+func (v *Volume) DevName() string {
+	return buildDevName(v.fsLv.VgName, v.fsLv.LvName)
+}
+
+func escapeName(n string) string {
+	return strings.ReplaceAll(n, "-", "--")
+}
+
+func buildDevName(vgName string, lvName string) string {
+	vgName = escapeName(vgName)
+	lvName = escapeName(lvName)
+	return filepath.Join("/dev/mapper", fmt.Sprintf("%s-%s", vgName, lvName))
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"syscall"
 
 	"github.com/dboxed/dboxed-volume/pkg/lvm"
@@ -61,7 +60,7 @@ func (v *Volume) DeleteSnapshot(snapshotName string) error {
 }
 
 func (v *Volume) MountSnapshot(snapshotName string, mountTarget string) error {
-	lvDev := filepath.Join("/dev", v.fsLv.VgName, snapshotName)
+	lvDev := buildDevName(v.fsLv.VgName, snapshotName)
 	_, err := util.RunCommand(false, "mount", "-oro", lvDev, mountTarget)
 	if err != nil {
 		return err
