@@ -22,7 +22,7 @@ func (v *Volume) Mount(mountTarget string) error {
 		}
 	}
 
-	_, err = util.RunCommand(false, "mount", lvDev, mountTarget)
+	err = util.RunCommand("mount", lvDev, mountTarget)
 	if err != nil {
 		return err
 	}

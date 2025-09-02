@@ -91,7 +91,7 @@ func Create(opts CreateOptions) error {
 	}
 
 	fsDev := buildDevName(vgName, volName)
-	_, err = util.RunCommand(false, fmt.Sprintf("mkfs.%s", opts.FsType), fsDev)
+	err = util.RunCommand(fmt.Sprintf("mkfs.%s", opts.FsType), fsDev)
 	if err != nil {
 		return err
 	}

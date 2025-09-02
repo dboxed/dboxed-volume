@@ -76,8 +76,7 @@ func buildColNames[T any]() []string {
 }
 
 func ListPVs() ([]PVEntry, error) {
-	var h pvsReport
-	err := util.RunCommandJson(&h, "pvs", "--reportformat=json", "-o", strings.Join(buildColNames[PVEntry](), ","))
+	h, err := util.RunCommandJson[pvsReport]("pvs", "--reportformat=json", "-o", strings.Join(buildColNames[PVEntry](), ","))
 	if err != nil {
 		return nil, err
 	}
@@ -85,8 +84,7 @@ func ListPVs() ([]PVEntry, error) {
 }
 
 func ListVGs() ([]VGEntry, error) {
-	var h vgsReport
-	err := util.RunCommandJson(&h, "vgs", "--reportformat=json", "-o", strings.Join(buildColNames[VGEntry](), ","))
+	h, err := util.RunCommandJson[vgsReport]("vgs", "--reportformat=json", "-o", strings.Join(buildColNames[VGEntry](), ","))
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +92,7 @@ func ListVGs() ([]VGEntry, error) {
 }
 
 func ListLVs() ([]LVEntry, error) {
-	var h lvsReport
-	err := util.RunCommandJson(&h, "lvs", "--reportformat=json", "-o", strings.Join(buildColNames[LVEntry](), ","))
+	h, err := util.RunCommandJson[lvsReport]("lvs", "--reportformat=json", "-o", strings.Join(buildColNames[LVEntry](), ","))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +100,7 @@ func ListLVs() ([]LVEntry, error) {
 }
 
 func PVCreate(dev string) error {
-	_, err := util.RunCommand(false, "pvcreate", dev)
+	err := util.RunCommand("pvcreate", dev)
 	if err != nil {
 		return err
 	}
@@ -115,7 +112,7 @@ func VGCreate(vgName string, devs ...string) error {
 		vgName,
 	}
 	args = append(args, devs...)
-	_, err := util.RunCommand(false, "vgcreate", args...)
+	err := util.RunCommand("vgcreate", args...)
 	if err != nil {
 		return err
 	}
@@ -136,7 +133,7 @@ func VGGet(vgName string) (*VGEntry, error) {
 }
 
 func VGDeactivate(vgName string) error {
-	_, err := util.RunCommand(false, "vgchange", "-an", vgName)
+	err := util.RunCommand("vgchange", "-an", vgName)
 	if err != nil {
 		return err
 	}
@@ -152,7 +149,7 @@ func TPCreate100(vgName string, tpName string, tags []string) error {
 	for _, t := range tags {
 		args = append(args, "--addtag", t)
 	}
-	_, err := util.RunCommand(false, "lvcreate", args...)
+	err := util.RunCommand("lvcreate", args...)
 	if err != nil {
 		return err
 	}
@@ -181,7 +178,7 @@ func LVCreate(vgName string, lvName string, size int64, tags []string) error {
 	for _, t := range tags {
 		args = append(args, "--addtag", t)
 	}
-	_, err := util.RunCommand(false, "lvcreate", args...)
+	err := util.RunCommand("lvcreate", args...)
 	if err != nil {
 		return err
 	}
@@ -198,7 +195,7 @@ func TLVCreate(vgName string, tpName string, lvName string, size int64, tags []s
 	for _, t := range tags {
 		args = append(args, "--addtag", t)
 	}
-	_, err := util.RunCommand(false, "lvcreate", args...)
+	err := util.RunCommand("lvcreate", args...)
 	if err != nil {
 		return err
 	}
@@ -212,7 +209,7 @@ func TLVSnapCreate(vgName string, lvName string, tpName string, snapName string)
 		"--thinpool", tpName,
 		fmt.Sprintf("%s/%s", vgName, lvName),
 	}
-	_, err := util.RunCommand(false, "lvcreate", args...)
+	err := util.RunCommand("lvcreate", args...)
 	if err != nil {
 		return err
 	}
@@ -220,7 +217,7 @@ func TLVSnapCreate(vgName string, lvName string, tpName string, snapName string)
 }
 
 func LVRemove(vgName string, lvName string) error {
-	_, err := util.RunCommand(false, "lvremove", fmt.Sprintf("%s/%s", vgName, lvName), "-f")
+	err := util.RunCommand("lvremove", fmt.Sprintf("%s/%s", vgName, lvName), "-f")
 	if err != nil {
 		return err
 	}
@@ -237,7 +234,7 @@ func LVActivate(vgName string, lvName string, activate bool) error {
 		args = append(args, "-an")
 	}
 	args = append(args, fmt.Sprintf("%s/%s", vgName, lvName))
-	_, err := util.RunCommand(false, "lvchange", args...)
+	err := util.RunCommand("lvchange", args...)
 	if err != nil {
 		return err
 	}

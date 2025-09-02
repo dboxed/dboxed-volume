@@ -24,7 +24,7 @@ type holder struct {
 }
 
 func List() ([]Entry, error) {
-	stdout, err := util.RunCommand(true, "losetup", "-J")
+	stdout, err := util.RunCommandStdout("losetup", "-J")
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func List() ([]Entry, error) {
 }
 
 func Attach(file string) (string, error) {
-	stdout, err := util.RunCommand(true, "losetup", "-f", "--show", file)
+	stdout, err := util.RunCommandStdout("losetup", "-f", "--show", file)
 	if err != nil {
 		return "", err
 	}
@@ -69,7 +69,7 @@ func GetOrAttach(file string, allowAttach bool) (string, bool, error) {
 }
 
 func Detach(loDev string) error {
-	_, err := util.RunCommand(false, "losetup", "-d", loDev)
+	err := util.RunCommand("losetup", "-d", loDev)
 	if err != nil {
 		return err
 	}

@@ -1,11 +1,12 @@
 package commands
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/dboxed/dboxed-volume/cmd/dboxed-volume/flags"
-	"github.com/dboxed/dboxed-volume/pkg/nats/client"
-	"github.com/dboxed/dboxed-volume/pkg/nats/dproto"
+	"github.com/dboxed/dboxed-volume/pkg/client"
+	"github.com/dboxed/dboxed-volume/pkg/server/models"
 	"github.com/dustin/go-humanize"
 )
 
@@ -18,11 +19,9 @@ type VolumeCreateCmd struct {
 }
 
 func (cmd *VolumeCreateCmd) Run(g *flags.GlobalFlags) error {
-	nc, err := g.ConnectNats()
-	if err != nil {
-		return err
-	}
-	c, err := client.New(nc)
+	ctx := context.Background()
+
+	c, err := client.New("")
 	if err != nil {
 		return err
 	}
@@ -32,22 +31,21 @@ func (cmd *VolumeCreateCmd) Run(g *flags.GlobalFlags) error {
 		return err
 	}
 
-	repoUuid, err := getRepoUuid(c, cmd.Repo)
+	r, err := getRepo(ctx, c, cmd.Repo)
 	if err != nil {
 		return err
 	}
 
-	rep, err := c.VolumeCreate(&dproto.VolumeCreateRequest{
-		RepositoryUuid: repoUuid,
-		Name:           cmd.Name,
-		FsSize:         int64(fsSize),
-		FsType:         cmd.FsType,
+	rep, err := c.CreateVolume(ctx, r.ID, models.CreateVolume{
+		Name:   cmd.Name,
+		FsSize: int64(fsSize),
+		FsType: cmd.FsType,
 	})
 	if err != nil {
 		return err
 	}
 
-	slog.Info("new volume created", slog.Any("uuid", rep.Volume.Uuid))
+	slog.Info("volume created", slog.Any("id", rep.ID), slog.Any("uuid", rep.Uuid))
 
 	return nil
 }

@@ -5,18 +5,21 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
+	"github.com/dboxed/dboxed-volume/pkg/client"
 	"github.com/dboxed/dboxed-volume/pkg/util"
 	"github.com/dboxed/dboxed-volume/pkg/volume"
 	"github.com/dboxed/dboxed-volume/pkg/webdavproxy"
-	"github.com/nats-io/nats.go"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type VolumeBackup struct {
-	Volume   *volume.Volume
-	NatsConn *nats.Conn
+	Client *client.Client
+	Volume *volume.Volume
 
-	RepositoryUuid        string
+	RepositoryId          int64
+	RusticPassword        string
 	SnapshotMount         string
 	WebdavProxyListenAddr string
 }
@@ -24,9 +27,14 @@ type VolumeBackup struct {
 func (vb *VolumeBackup) Backup(ctx context.Context) error {
 	snapshotName := "_backup"
 
-	_, _ = util.RunCommand(false, "sync")
+	_ = util.RunCommand("sync")
 
-	err := vb.Volume.CreateSnapshot(snapshotName, true)
+	err := vb.Volume.UnmountSnapshot(snapshotName)
+	if err != nil {
+		return err
+	}
+
+	err = vb.Volume.CreateSnapshot(snapshotName, true)
 	if err != nil {
 		return err
 	}
@@ -42,13 +50,15 @@ func (vb *VolumeBackup) Backup(ctx context.Context) error {
 		return err
 	}
 	defer func() {
-		_, err := util.RunCommand(false, "umount", vb.SnapshotMount)
+		err := vb.Volume.UnmountSnapshot(snapshotName)
 		if err != nil {
 			slog.Error("deferred unmounting failed", slog.Any("error", err))
 		}
 	}()
 
-	webdavProxy, err := webdavproxy.NewProxy(vb.NatsConn, vb.RepositoryUuid, vb.WebdavProxyListenAddr)
+	fs := webdavproxy.NewFileSystem(ctx, vb.Client, vb.RepositoryId)
+
+	webdavProxy, err := webdavproxy.NewProxy(fs, vb.WebdavProxyListenAddr)
 	if err != nil {
 		return err
 	}
@@ -58,39 +68,56 @@ func (vb *VolumeBackup) Backup(ctx context.Context) error {
 	}
 	defer webdavProxy.Stop()
 
-	rusticConfigFile, err := vb.buildRusticConfigFile(wdpAddr.String())
+	configDir, err := vb.buildRusticConfigDir(wdpAddr.String())
 	if err != nil {
 		return err
 	}
-	defer os.Remove(rusticConfigFile)
+	defer os.RemoveAll(configDir)
 
-	rusticArgs := []string{"backup", vb.SnapshotMount}
-	_, err = util.RunCommand(false, "rustic", rusticArgs...)
+	rusticArgs := []string{"backup", "--init", vb.SnapshotMount}
+	c := util.CommandHelper{
+		Command: "rustic",
+		Args:    rusticArgs,
+		Dir:     configDir,
+	}
+	err = c.Run()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (vb *VolumeBackup) buildRusticConfigFile(webdavAddr string) (string, error) {
-	tmpFile, err := os.CreateTemp("", "")
+func (vb *VolumeBackup) buildRusticConfigDir(webdavAddr string) (string, error) {
+	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", err
 	}
-	defer tmpFile.Close()
+	doRm := true
+	defer func() {
+		if doRm {
+			_ = os.RemoveAll(tmpDir)
+		}
+	}()
 
-	config := fmt.Sprintf(`
-[repository]
-repository = "opendal:webdav"
-password = "test"
-[repository.options]
-endpoint = "http://%s"
-`, webdavAddr)
-
-	_, err = tmpFile.Write([]byte(config))
+	config := RusticConfig{
+		Repository: RusticConfigRepository{
+			Repository: "opendal:webdav",
+			Password:   vb.RusticPassword,
+			Options: RusticConfigRepositoryOptions{
+				Endpoint: fmt.Sprintf("http://%s", webdavAddr),
+			},
+		},
+	}
+	configBytes, err := toml.Marshal(config)
 	if err != nil {
 		return "", err
 	}
 
-	return tmpFile.Name(), nil
+	err = os.WriteFile(filepath.Join(tmpDir, "rustic.toml"), configBytes, 0600)
+	if err != nil {
+		return "", err
+	}
+
+	doRm = false
+	return tmpDir, nil
 }

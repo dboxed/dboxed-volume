@@ -1,11 +1,12 @@
 package commands
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/dboxed/dboxed-volume/cmd/dboxed-volume/flags"
-	"github.com/dboxed/dboxed-volume/pkg/nats/client"
-	"github.com/dboxed/dboxed-volume/pkg/nats/dproto"
+	"github.com/dboxed/dboxed-volume/pkg/client"
+	"github.com/dboxed/dboxed-volume/pkg/server/models"
 )
 
 type RepoCreateCmd struct {
@@ -18,23 +19,23 @@ type RepoCreateCmd struct {
 	S3SecretAccessKey string  `name:"s3-secret-access-key" help:"Specify S3 secret access key" required:""`
 
 	S3Prefix string `name:"s3-prefix" help:"Specify the s3 prefix"`
+
+	RusticPassword string `help:"Specify the password used for encryption" required:""`
 }
 
 func (cmd *RepoCreateCmd) Run(g *flags.GlobalFlags) error {
-	nc, err := g.ConnectNats()
-	if err != nil {
-		return err
-	}
-	c, err := client.New(nc)
+	ctx := context.Background()
+
+	c, err := client.New("")
 	if err != nil {
 		return err
 	}
 
-	req := &dproto.RepositoryCreateRequest{
+	req := models.CreateRepository{
 		Name: cmd.Name,
 	}
 
-	req.S3 = &dproto.RepositoryConfigS3{
+	req.S3 = &models.CreateRepositoryStorageS3{
 		Endpoint:        cmd.S3Endpoint,
 		Region:          cmd.S3Region,
 		Bucket:          cmd.S3Bucket,
@@ -43,12 +44,16 @@ func (cmd *RepoCreateCmd) Run(g *flags.GlobalFlags) error {
 		Prefix:          cmd.S3Prefix,
 	}
 
-	rep, err := c.RepositoryCreate(req)
+	req.Rustic = &models.CreateRepositoryBackupRustic{
+		Password: cmd.RusticPassword,
+	}
+
+	rep, err := c.CreateRepository(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	slog.Info("new repository created", slog.Any("uuid", rep.Repository.Uuid))
+	slog.Info("repository created", slog.Any("id", rep.ID), slog.Any("uuid", rep.Uuid))
 
 	return nil
 }

@@ -9,16 +9,15 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/dboxed/dboxed-volume/pkg/nats/dproto"
-	"github.com/dboxed/dboxed-volume/pkg/nats/nats_handlers"
-	"github.com/dboxed/dboxed-volume/pkg/s3proxy"
+	"github.com/dboxed/dboxed-volume/pkg/server/models"
 	"golang.org/x/net/webdav"
 )
 
-type writeFile struct {
-	fileBase
+type fileWrite struct {
+	fs  *FileSystem
+	key string
 
-	presignedPut *dproto.S3ProxyPresignPutReply
+	presignedPut *models.S3ProxyPresignPutResult
 
 	m            sync.Mutex
 	uploadReq    *http.Request
@@ -26,13 +25,23 @@ type writeFile struct {
 	uploadWriter *io.PipeWriter
 	uploadErr    error
 	uploadDone   chan struct{}
+	written      int64
 }
 
-func (f *writeFile) presignPutUrl() error {
-	slog.Info("presignPutUrl", slog.Any("name", f.name))
-	rep, err := nats_handlers.Request[*dproto.S3ProxyPresignPutReply](f.p.nc, s3proxy.NatsServiceName+".presign-put", &dproto.S3ProxyPresignPutRequest{
-		RepositoryUuid: f.p.repositoryUuid,
-		ObjectName:     f.fi.oi.Key,
+func (f *fileWrite) Stat() (fs.FileInfo, error) {
+	return &fileInfo{
+		oi: models.S3ObjectInfo{
+			Key:  f.key,
+			Size: f.written,
+		},
+	}, nil
+}
+
+func (f *fileWrite) presignPutUrl() error {
+	slog.Info("presignPutUrl", slog.Any("key", f.key))
+
+	rep, err := f.fs.client.S3ProxyPresignPut(f.fs.ctx, f.fs.repositoryId, models.S3ProxyPresignPutRequest{
+		Key: f.key,
 	})
 	if err != nil {
 		return err
@@ -41,7 +50,7 @@ func (f *writeFile) presignPutUrl() error {
 	return nil
 }
 
-func (f *writeFile) beginUpload(url string) error {
+func (f *fileWrite) beginUpload(url string) error {
 	bodyReader, bodyWriter := io.Pipe()
 
 	f.m.Lock()
@@ -51,7 +60,7 @@ func (f *writeFile) beginUpload(url string) error {
 		return fmt.Errorf("upload already started")
 	}
 
-	slog.Info("beginUpload", slog.Any("name", f.fi.Name()))
+	slog.Info("beginUpload", slog.Any("key", f.key))
 
 	req, err := http.NewRequest("PUT", url, bufio.NewReaderSize(bodyReader, 1024*64))
 	if err != nil {
@@ -70,18 +79,18 @@ func (f *writeFile) beginUpload(url string) error {
 	return nil
 }
 
-func (f *writeFile) handleUploadDone(resp *http.Response, err error) {
+func (f *fileWrite) handleUploadDone(resp *http.Response, err error) {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	slog.Info("handleUploadDone", slog.Any("name", f.fi.Name()))
+	slog.Info("handleUploadDone", slog.Any("key", f.key))
 
 	f.uploadResp = resp
 	f.uploadErr = err
 	close(f.uploadDone)
 }
 
-func (f *writeFile) checkUploadErr() error {
+func (f *fileWrite) checkUploadErr() error {
 	f.m.Lock()
 	defer f.m.Unlock()
 	if f.uploadErr != nil {
@@ -96,26 +105,30 @@ func (f *writeFile) checkUploadErr() error {
 	return nil
 }
 
-func (f *writeFile) Start() error {
+func (f *fileWrite) Start() error {
 	err := f.presignPutUrl()
 	if err != nil {
 		return err
 	}
 
-	err = f.beginUpload(f.presignedPut.Url)
+	err = f.beginUpload(f.presignedPut.PresignedUrl)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (f *writeFile) Close() error {
+func (f *fileWrite) Close() error {
+	defer func() {
+		f.fs.forgetCache(f.key, true)
+	}()
+
 	err := f.checkUploadErr()
 	if err != nil {
 		return err
 	}
 
-	slog.Info("Close", slog.Any("name", f.fi.Name()))
+	//slog.Info("Close", slog.Any("key", f.key))
 
 	err = f.uploadWriter.Close()
 	if err != nil {
@@ -127,33 +140,31 @@ func (f *writeFile) Close() error {
 		return err
 	}
 
-	slog.Info("wait for close", slog.Any("name", f.fi.Name()))
+	//slog.Info("wait for close", slog.Any("key", f.key))
 	<-f.uploadDone
-	slog.Info("close done", slog.Any("name", f.fi.Name()))
+	//slog.Info("close done", slog.Any("key", f.key))
 
 	err = f.checkUploadErr()
 	if err != nil {
 		return err
 	}
 
-	f.p.forgetCache(f.p.parentPrefix(f.name))
-
 	return nil
 }
 
-func (f *writeFile) Write(p []byte) (int, error) {
-	//slog.Info("Write", slog.Any("name", f.fi.Name()), slog.Any("len", len(p)))
+func (f *fileWrite) Write(p []byte) (int, error) {
+	//slog.Info("Write", slog.Any("key", f.key), slog.Any("len", len(p)))
 	return f.uploadWriter.Write(p)
 }
 
-func (f *writeFile) Seek(offset int64, whence int) (int64, error) {
+func (f *fileWrite) Seek(offset int64, whence int) (int64, error) {
 	return 0, webdav.ErrNotImplemented
 }
 
-func (f *writeFile) Read(p []byte) (n int, err error) {
+func (f *fileWrite) Read(p []byte) (n int, err error) {
 	return 0, webdav.ErrNotImplemented
 }
 
-func (f *writeFile) Readdir(count int) ([]fs.FileInfo, error) {
+func (f *fileWrite) Readdir(count int) ([]fs.FileInfo, error) {
 	return nil, webdav.ErrNotImplemented
 }

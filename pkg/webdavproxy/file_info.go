@@ -7,58 +7,58 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dboxed/dboxed-volume/pkg/nats/dproto"
-	"golang.org/x/net/webdav"
+	"github.com/dboxed/dboxed-volume/pkg/server/models"
 )
 
 type fileInfo struct {
-	prefix string
-	oi     *dproto.S3ObjectInfo
+	oi models.S3ObjectInfo
 }
 
 func (f *fileInfo) Name() string {
-	if f.oi != nil {
-		return filepath.Base(f.oi.Key)
-	} else {
-		return filepath.Base(strings.TrimSuffix(f.prefix, "/"))
-	}
+	return filepath.Base(f.oi.Key)
 }
 func (f *fileInfo) Size() int64 {
-	if f.oi != nil {
-		return f.oi.Size
-	} else {
-		return 0
-	}
+	return f.oi.Size
 }
 func (f *fileInfo) Mode() os.FileMode {
-	if f.oi != nil {
-		return 0
-	} else {
-		return os.ModeDir
-	}
+	return 0
 }
 
 func (f *fileInfo) ModTime() time.Time {
-	if f.oi != nil {
-		return f.oi.LastModified.AsTime()
+	if f.oi.LastModified != nil {
+		return *f.oi.LastModified
 	} else {
 		return time.Time{}
 	}
 }
-func (f *fileInfo) IsDir() bool      { return f.Mode().IsDir() }
+func (f *fileInfo) IsDir() bool      { return false }
 func (f *fileInfo) Sys() interface{} { return nil }
 
 func (f *fileInfo) ContentType(ctx context.Context) (string, error) {
-	if f.oi != nil {
-		return "", nil
-	} else {
-		return "", nil
-	}
+	return "", nil
 }
 
 func (f *fileInfo) ETag(ctx context.Context) (string, error) {
-	if f.oi != nil {
-		return f.oi.Etag, nil
-	}
-	return "", webdav.ErrNotImplemented
+	return f.oi.Etag, nil
 }
+
+type dirInfo struct {
+	name string
+}
+
+func (f *dirInfo) Name() string {
+	return filepath.Base(strings.TrimSuffix(f.name, "/"))
+}
+func (f *dirInfo) Size() int64 {
+	return 0
+}
+func (f *dirInfo) Mode() os.FileMode {
+	return os.ModeDir
+}
+
+func (f *dirInfo) ModTime() time.Time {
+	return time.Time{}
+
+}
+func (f *dirInfo) IsDir() bool      { return true }
+func (f *dirInfo) Sys() interface{} { return nil }
