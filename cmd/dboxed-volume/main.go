@@ -20,6 +20,7 @@ type Cli struct {
 
 	Repo   commands.RepoCmd   `cmd:"" help:"Repo commands"`
 	Volume commands.VolumeCmd `cmd:"" help:"Volume commands"`
+	Token  commands.TokenCmd  `cmd:"" help:"Token commands"`
 
 	Debug commands.DebugCmd `cmd:"" help:"Debug/dev commands"`
 }

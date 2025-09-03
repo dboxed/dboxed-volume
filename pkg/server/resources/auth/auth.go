@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/danielgtaylor/huma/v2"
@@ -19,6 +20,8 @@ import (
 	"github.com/dboxed/dboxed-volume/pkg/server/models"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+const TokenPrefix = "dvt_"
 
 type AuthHandler struct {
 	config config.Config
@@ -140,6 +143,7 @@ func (s *AuthHandler) AuthMiddleware(api huma.API) func(ctx huma.Context, next f
 			next(ctx)
 			return
 		}
+		noToken := huma_utils.HasMetadataTrue(ctx, huma_metadata.SkipAuth)
 
 		authz, err := GetAuthorizationToken(ctx)
 		if err != nil {
@@ -147,18 +151,31 @@ func (s *AuthHandler) AuthMiddleware(api huma.API) func(ctx huma.Context, next f
 			return
 		}
 
-		user, err := s.checkIdToken(ctx, authz)
-		if err != nil {
-			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, err.Error(), err)
-			return
+		var user *models.User
+		if strings.HasPrefix(authz, TokenPrefix) {
+			if noToken {
+				_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, err.Error(), err)
+				return
+			}
+			user, err = s.checkDboxedToken(ctx, authz)
+			if err != nil {
+				_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, err.Error(), err)
+				return
+			}
+		} else {
+			user, err = s.checkOidcToken(ctx, authz)
+			if err != nil {
+				_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, err.Error(), err)
+				return
+			}
+			err = s.updateDBUser(ctx, user)
+			if err != nil {
+				_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, err.Error(), err)
+				return
+			}
 		}
-		ctx = huma.WithValue(ctx, "user", user)
 
-		err = s.updateDBUser(ctx, user)
-		if err != nil {
-			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, err.Error(), err)
-			return
-		}
+		ctx = huma.WithValue(ctx, "user", user)
 
 		if huma_utils.HasMetadataTrue(ctx, huma_metadata.NeedAdmin) {
 			if !user.IsAdmin {
@@ -171,7 +188,21 @@ func (s *AuthHandler) AuthMiddleware(api huma.API) func(ctx huma.Context, next f
 	}
 }
 
-func (s *AuthHandler) checkIdToken(ctx huma.Context, authz string) (*models.User, error) {
+func (s *AuthHandler) checkDboxedToken(ctx huma.Context, authz string) (*models.User, error) {
+	q := querier.GetQuerier(ctx.Context())
+	t, err := dmodel.GetTokenByToken(q, authz)
+	if err != nil {
+		return nil, err
+	}
+	isAdmin := false
+	if slices.Contains(s.config.Auth.AdminUsers, t.UserID) {
+		isAdmin = true
+	}
+	u := models.UserFromDB(*t.User, isAdmin)
+	return &u, nil
+}
+
+func (s *AuthHandler) checkOidcToken(ctx huma.Context, authz string) (*models.User, error) {
 	idToken, err := s.verifyIDToken(ctx.Context(), authz)
 	if err != nil {
 		return nil, err

@@ -84,7 +84,7 @@ func (c *Client) CreateVolume(ctx context.Context, repoId int64, req models.Crea
 }
 
 func (c *Client) DeleteVolume(ctx context.Context, repoId int64, volumeId int64) error {
-	_, err := requestApi[models.Volume](ctx, c, "DELETE", fmt.Sprintf("v1/repositories/%d/volumes/%d", repoId, volumeId), struct{}{})
+	_, err := requestApi[huma_utils.Empty](ctx, c, "DELETE", fmt.Sprintf("v1/repositories/%d/volumes/%d", repoId, volumeId), struct{}{})
 	return err
 }
 
@@ -106,4 +106,25 @@ func (c *Client) GetVolumeByName(ctx context.Context, repoId int64, name string)
 
 func (c *Client) VolumeLock(ctx context.Context, repoId int64, volumeId int64, req models.VolumeLockRequest) (*models.Volume, error) {
 	return requestApi[models.Volume](ctx, c, "POST", fmt.Sprintf("v1/repositories/%d/volumes/%d/lock", repoId, volumeId), req)
+}
+
+func (c *Client) CreateToken(ctx context.Context, req models.CreateToken) (*models.CreateTokenResult, error) {
+	return requestApi[models.CreateTokenResult](ctx, c, "POST", "v1/tokens", req)
+}
+
+func (c *Client) ListTokens(ctx context.Context) ([]models.Token, error) {
+	l, err := requestApi[huma_utils.ListBody[models.Token]](ctx, c, "GET", "v1/tokens", struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	return l.Items, err
+}
+
+func (c *Client) GetTokenById(ctx context.Context, tokenId string) (*models.Token, error) {
+	return requestApi[models.Token](ctx, c, "GET", fmt.Sprintf("v1/tokens/%s", tokenId), struct{}{})
+}
+
+func (c *Client) DeleteToken(ctx context.Context, tokenId string) error {
+	_, err := requestApi[huma_utils.Empty](ctx, c, "DELETE", fmt.Sprintf("v1/tokens/%s", tokenId), struct{}{})
+	return err
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/dboxed/dboxed-volume/pkg/server/resources/healthz"
 	"github.com/dboxed/dboxed-volume/pkg/server/resources/repositories"
 	"github.com/dboxed/dboxed-volume/pkg/server/resources/s3proxy"
+	"github.com/dboxed/dboxed-volume/pkg/server/resources/tokens"
 	"github.com/dboxed/dboxed-volume/pkg/server/resources/users"
 	"github.com/dboxed/dboxed-volume/pkg/server/resources/volumes"
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,7 @@ type DboxedVolumeServer struct {
 	healthz      *healthz.HealthzServer
 	auth         *auth.AuthHandler
 	users        *users.Users
+	tokens       *tokens.Tokens
 	repositories *repositories.Repositories
 	volumes      *volumes.Volumes
 	s3proxy      *s3proxy.S3Proxy
@@ -50,6 +52,7 @@ func NewDboxedVolumeServer(ctx context.Context, config config.Config) (*DboxedVo
 	s.healthz = healthz.New(config)
 	s.auth = auth.NewAuthHandler(config)
 	s.users = users.New()
+	s.tokens = tokens.New()
 	s.repositories = repositories.New(config)
 	s.volumes = volumes.New(config)
 	s.s3proxy = s3proxy.New(config)
@@ -73,6 +76,11 @@ func (s *DboxedVolumeServer) InitApi(ctx context.Context) error {
 	}
 
 	err = s.users.Init(s.api)
+	if err != nil {
+		return err
+	}
+
+	err = s.tokens.Init(s.api)
 	if err != nil {
 		return err
 	}
