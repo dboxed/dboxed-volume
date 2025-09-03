@@ -11,6 +11,14 @@ create table repository
     unique (name)
 );
 
+create table repository_access
+(
+    repository_id bigint not null references repository (id) on delete cascade,
+    user_id       text   not null references "user" (id) on delete restrict,
+
+    primary key (repository_id, user_id)
+);
+
 create table repository_storage_s3
 (
     id                bigint primary key references repository (id) on delete cascade,

@@ -2,10 +2,12 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -14,7 +16,9 @@ import (
 	"github.com/dboxed/dboxed-common/util"
 	"github.com/dboxed/dboxed-volume/pkg/config"
 	"github.com/dboxed/dboxed-volume/pkg/db/dmodel"
+	"github.com/dboxed/dboxed-volume/pkg/server/huma_metadata"
 	"github.com/dboxed/dboxed-volume/pkg/server/models"
+	"github.com/dboxed/dboxed-volume/pkg/server/resources/auth"
 	"github.com/google/uuid"
 )
 
@@ -27,6 +31,7 @@ func New(config config.Config) *Repositories {
 }
 
 func (s *Repositories) Init(api huma.API) error {
+
 	huma.Post(api, "/v1/repositories", s.restCreateRepository)
 	huma.Get(api, "/v1/repositories", s.restListRepositories)
 	huma.Get(api, "/v1/repositories/{repositoryId}", s.restGetRepository)
@@ -34,11 +39,14 @@ func (s *Repositories) Init(api huma.API) error {
 	huma.Patch(api, "/v1/repositories/{repositoryId}", s.restUpdateRepository)
 	huma.Delete(api, "/v1/repositories/{repositoryId}", s.restDeleteRepository)
 
+	huma.Get(api, "/v1/admin/repositories", s.restAdminListRepositories, huma_metadata.NeedAdminModifier())
+
 	return nil
 }
 
 func (s *Repositories) restCreateRepository(ctx context.Context, i *huma_utils.JsonBody[models.CreateRepository]) (*huma_utils.JsonBody[models.Repository], error) {
 	q := querier.GetQuerier(ctx)
+	user := auth.MustGetUser(ctx)
 
 	err := util.CheckName(i.Body.Name)
 	if err != nil {
@@ -64,6 +72,15 @@ func (s *Repositories) restCreateRepository(ctx context.Context, i *huma_utils.J
 	}
 
 	err = r.Create(q)
+	if err != nil {
+		return nil, err
+	}
+
+	ra := dmodel.RepositoryAccess{
+		RepositoryId: r.ID,
+		UserId:       user.ID,
+	}
+	err = ra.Create(q)
 	if err != nil {
 		return nil, err
 	}
@@ -109,9 +126,24 @@ func (s *Repositories) restCreateRepository(ctx context.Context, i *huma_utils.J
 }
 
 func (s *Repositories) restListRepositories(ctx context.Context, i *struct{}) (*huma_utils.List[models.Repository], error) {
-	q := querier.GetQuerier(ctx)
+	return s.doRestListRepositories(ctx, i, false)
+}
 
-	l, err := dmodel.ListRepositories(q, true)
+func (s *Repositories) restAdminListRepositories(ctx context.Context, i *struct{}) (*huma_utils.List[models.Repository], error) {
+	return s.doRestListRepositories(ctx, i, true)
+}
+
+func (s *Repositories) doRestListRepositories(ctx context.Context, i *struct{}, asAdmin bool) (*huma_utils.List[models.Repository], error) {
+	q := querier.GetQuerier(ctx)
+	user := auth.MustGetUser(ctx)
+
+	var l []dmodel.Repository
+	var err error
+	if asAdmin {
+		l, err = dmodel.ListRepositories(q, nil, true)
+	} else {
+		l, err = dmodel.ListRepositories(q, &user.ID, true)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -129,9 +161,7 @@ type RepositoryId struct {
 }
 
 func (s *Repositories) restGetRepository(c context.Context, i *RepositoryId) (*huma_utils.JsonBody[models.Repository], error) {
-	q := querier.GetQuerier(c)
-
-	r, err := dmodel.GetRepositoryById(q, i.RepositoryId, true)
+	r, err := checkRepositoryAccess(c, i.RepositoryId)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +181,10 @@ func (s *Repositories) restGetRepositoryByName(c context.Context, i *RepositoryN
 	if err != nil {
 		return nil, err
 	}
+	_, err = checkRepositoryAccess(c, r.ID)
+	if err != nil {
+		return nil, err
+	}
 
 	m := models.RepositoryFromDB(*r)
 	return huma_utils.NewJsonBody(m), nil
@@ -162,9 +196,7 @@ type restUpdateRepositoryInput struct {
 }
 
 func (s *Repositories) restUpdateRepository(c context.Context, i *restUpdateRepositoryInput) (*huma_utils.JsonBody[models.Repository], error) {
-	q := querier.GetQuerier(c)
-
-	r, err := dmodel.GetRepositoryById(q, i.RepositoryId.RepositoryId, true)
+	r, err := checkRepositoryAccess(c, i.RepositoryId.RepositoryId)
 	if err != nil {
 		return nil, err
 	}
@@ -242,12 +274,40 @@ func (s *Repositories) doUpdateRepository(c context.Context, r *dmodel.Repositor
 func (s *Repositories) restDeleteRepository(c context.Context, i *RepositoryId) (*huma_utils.Empty, error) {
 	q := querier.GetQuerier(c)
 
-	err := dmodel.SoftDeleteWithConstraintsByIds[dmodel.Repository](q, i.RepositoryId)
+	_, err := checkRepositoryAccess(c, i.RepositoryId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = dmodel.SoftDeleteWithConstraintsByIds[dmodel.Repository](q, i.RepositoryId)
 	if err != nil {
 		return nil, err
 	}
 
 	return &huma_utils.Empty{}, nil
+}
+
+func checkRepositoryAccess(ctx context.Context, id int64) (*dmodel.Repository, error) {
+	q := querier.GetQuerier(ctx)
+	user := auth.MustGetUser(ctx)
+
+	r, err := dmodel.GetRepositoryById(q, id, true)
+	if err != nil {
+		if util.IsSqlNotFoundError(err) {
+			return nil, huma.Error404NotFound("workspace not found")
+		}
+		return nil, err
+	}
+
+	if !user.IsAdmin {
+		if !slices.ContainsFunc(r.Access, func(access dmodel.RepositoryAccess) bool {
+			return access.UserId == user.ID
+		}) {
+			return nil, huma.Error403Forbidden("access to repository not allowed")
+		}
+	}
+
+	return r, nil
 }
 
 func RepositoryMiddleware(api huma.API) func(ctx huma.Context, next func(huma.Context)) {
@@ -264,13 +324,13 @@ func RepositoryMiddleware(api huma.API) func(ctx huma.Context, next func(huma.Co
 			return
 		}
 
-		q := querier.GetQuerier(ctx.Context())
-		r, err := dmodel.GetRepositoryById(q, repositoryId, true)
+		r, err := checkRepositoryAccess(ctx.Context(), repositoryId)
 		if err != nil {
-			if util.IsSqlNotFoundError(err) {
-				huma.WriteErr(api, ctx, http.StatusNotFound, err.Error(), err)
+			var err2 huma.StatusError
+			if errors.As(err, &err2) {
+				huma.WriteErr(api, ctx, err2.GetStatus(), err.Error(), err)
 			} else {
-				huma.WriteErr(api, ctx, http.StatusInternalServerError, err.Error(), err)
+				huma.WriteErr(api, ctx, http.StatusForbidden, err.Error(), err)
 			}
 			return
 		}
