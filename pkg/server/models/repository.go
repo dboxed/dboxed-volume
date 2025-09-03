@@ -10,7 +10,7 @@ type Repository struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"createdAt"`
 
-	Uuid string `db:"uuid"`
+	Uuid string `json:"uuid"`
 
 	S3 *RepositoryStorageS3 `json:"s3"`
 

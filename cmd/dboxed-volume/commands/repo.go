@@ -11,6 +11,7 @@ import (
 type RepoCmd struct {
 	Create RepoCreateCmd `cmd:"" help:"Create a repository"`
 	Update RepoUpdateCmd `cmd:"" help:"Update a repository"`
+	List   RepoListCmd   `cmd:"" help:"List repositories"`
 }
 
 func getRepo(ctx context.Context, c *client.Client, repo string) (*models.Repository, error) {

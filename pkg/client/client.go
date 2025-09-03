@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/dboxed/dboxed-common/huma_utils"
 	"github.com/dboxed/dboxed-volume/pkg/config"
 	"github.com/dboxed/dboxed-volume/pkg/server/models"
 )
@@ -41,6 +42,9 @@ func New(url string, staticToken *string) (*Client, error) {
 			clientAuth.ApiUrl = url
 		}
 		c.clientAuth = clientAuth
+		if url == "" {
+			c.url = c.clientAuth.ApiUrl
+		}
 	}
 
 	return c, nil
@@ -59,6 +63,14 @@ func (c *Client) UpdateRepository(ctx context.Context, repoId int64, req models.
 	return requestApi[models.Repository](ctx, c, "PATCH", fmt.Sprintf("v1/repositories/%d", repoId), req)
 }
 
+func (c *Client) ListRepositories(ctx context.Context) ([]models.Repository, error) {
+	l, err := requestApi[huma_utils.ListBody[models.Repository]](ctx, c, "GET", "v1/repositories", struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	return l.Items, err
+}
+
 func (c *Client) GetRepositoryById(ctx context.Context, repoId int64) (*models.Repository, error) {
 	return requestApi[models.Repository](ctx, c, "GET", fmt.Sprintf("v1/repositories/%d", repoId), struct{}{})
 }
@@ -74,6 +86,14 @@ func (c *Client) CreateVolume(ctx context.Context, repoId int64, req models.Crea
 func (c *Client) DeleteVolume(ctx context.Context, repoId int64, volumeId int64) error {
 	_, err := requestApi[models.Volume](ctx, c, "DELETE", fmt.Sprintf("v1/repositories/%d/volumes/%d", repoId, volumeId), struct{}{})
 	return err
+}
+
+func (c *Client) ListVolumes(ctx context.Context, repoId int64) ([]models.Volume, error) {
+	l, err := requestApi[huma_utils.ListBody[models.Volume]](ctx, c, "GET", fmt.Sprintf("v1/repositories/%d/volumes", repoId), struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	return l.Items, err
 }
 
 func (c *Client) GetVolumeById(ctx context.Context, repoId int64, volumeId int64) (*models.Volume, error) {

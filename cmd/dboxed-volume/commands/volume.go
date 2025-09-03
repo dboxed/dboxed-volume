@@ -10,6 +10,7 @@ import (
 
 type VolumeCmd struct {
 	Create VolumeCreateCmd `cmd:"" help:"Create a volume in the repository"`
+	List   VolumeListCmd   `cmd:"" help:"List volumes"`
 	Serve  VolumeServeCmd  `cmd:"" help:"Lock, mount and sync a volume"`
 }
 
