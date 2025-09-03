@@ -26,7 +26,7 @@ type RepoCreateCmd struct {
 func (cmd *RepoCreateCmd) Run(g *flags.GlobalFlags) error {
 	ctx := context.Background()
 
-	c, err := client.New("")
+	c, err := client.New("", nil)
 	if err != nil {
 		return err
 	}

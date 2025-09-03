@@ -14,29 +14,33 @@ import (
 type Client struct {
 	url string
 
-	clientAuth *config.ClientAuth
+	clientAuth  *config.ClientAuth
+	staticToken *string
 
 	m        sync.Mutex
 	provider *oidc.Provider
 }
 
-func New(url string) (*Client, error) {
-	clientAuth, err := config.ReadClientAuth()
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		} else {
-			clientAuth = &config.ClientAuth{}
-		}
-	}
-
-	if url != "" {
-		clientAuth.ApiUrl = url
-	}
-
+func New(url string, staticToken *string) (*Client, error) {
 	c := &Client{
-		url:        clientAuth.ApiUrl,
-		clientAuth: clientAuth,
+		url: url,
+	}
+
+	if staticToken != nil {
+		c.staticToken = staticToken
+	} else {
+		clientAuth, err := config.ReadClientAuth()
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
+			} else {
+				clientAuth = &config.ClientAuth{}
+			}
+		}
+		if url != "" {
+			clientAuth.ApiUrl = url
+		}
+		c.clientAuth = clientAuth
 	}
 
 	return c, nil
@@ -44,6 +48,11 @@ func New(url string) (*Client, error) {
 
 func (c *Client) CreateRepository(ctx context.Context, req models.CreateRepository) (*models.Repository, error) {
 	return requestApi[models.Repository](ctx, c, "POST", "v1/repositories", req)
+}
+
+func (c *Client) DeleteRepository(ctx context.Context, repoId int64) error {
+	_, err := requestApi[models.Volume](ctx, c, "DELETE", fmt.Sprintf("v1/repositories/%d", repoId), struct{}{})
+	return err
 }
 
 func (c *Client) UpdateRepository(ctx context.Context, repoId int64, req models.UpdateRepository) (*models.Repository, error) {
@@ -58,8 +67,13 @@ func (c *Client) GetRepositoryByName(ctx context.Context, name string) (*models.
 	return requestApi[models.Repository](ctx, c, "GET", fmt.Sprintf("v1/repositories/by-name/%s", name), struct{}{})
 }
 
-func (c *Client) CreateVolume(ctx context.Context, repoId int64, req models.CreateVolume) (*models.Repository, error) {
-	return requestApi[models.Repository](ctx, c, "POST", fmt.Sprintf("v1/repositories/%d/volumes", repoId), req)
+func (c *Client) CreateVolume(ctx context.Context, repoId int64, req models.CreateVolume) (*models.Volume, error) {
+	return requestApi[models.Volume](ctx, c, "POST", fmt.Sprintf("v1/repositories/%d/volumes", repoId), req)
+}
+
+func (c *Client) DeleteVolume(ctx context.Context, repoId int64, volumeId int64) error {
+	_, err := requestApi[models.Volume](ctx, c, "DELETE", fmt.Sprintf("v1/repositories/%d/volumes/%d", repoId, volumeId), struct{}{})
+	return err
 }
 
 func (c *Client) GetVolumeById(ctx context.Context, repoId int64, volumeId int64) (*models.Volume, error) {

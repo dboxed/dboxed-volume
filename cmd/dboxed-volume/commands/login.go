@@ -14,7 +14,7 @@ type LoginCmd struct {
 func (cmd *LoginCmd) Run(g *flags.GlobalFlags) error {
 	ctx := context.Background()
 
-	c, err := client.New(cmd.Url)
+	c, err := client.New(cmd.Url, nil)
 	if err != nil {
 		return err
 	}

@@ -16,7 +16,7 @@ func requestApi[ReplyBody any, RequestBody any](ctx context.Context, c *Client, 
 }
 
 func requestApi2[ReplyBody any, RequestBody any](ctx context.Context, c *Client, method string, p string, body RequestBody, withToken bool) (*ReplyBody, error) {
-	if withToken {
+	if withToken && c.staticToken == nil {
 		err := c.RefreshToken(ctx)
 		if err != nil {
 			return nil, err
@@ -41,8 +41,12 @@ func requestApi2[ReplyBody any, RequestBody any](ctx context.Context, c *Client,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(b)))
 
-	if withToken && c.clientAuth.Token != nil {
-		req.Header.Set("Authorization", "Bearer "+c.clientAuth.Token.AccessToken)
+	if withToken {
+		if c.staticToken != nil {
+			req.Header.Set("Authorization", "Bearer "+*c.staticToken)
+		} else if c.clientAuth.Token != nil {
+			req.Header.Set("Authorization", "Bearer "+c.clientAuth.Token.AccessToken)
+		}
 	}
 
 	resp, err := http.DefaultClient.Do(req)
