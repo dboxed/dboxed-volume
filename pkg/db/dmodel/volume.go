@@ -20,8 +20,6 @@ type Volume struct {
 
 	LockId   *string `db:"lock_id"`
 	LockTime *int64  `db:"lock_time"`
-
-	Repository *Repository `join:"true"`
 }
 
 func (v *Volume) Create(q *querier.Querier) error {
