@@ -1,0 +1,81 @@
+
+version: 2
+pro: true
+
+builds:
+  - id: dboxed-volume
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/dboxed-volume
+    binary: bin/dboxed-volume
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser'
+      - -extldflags=-static
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+dockers:
+  - id: linux-amd64
+    goos: linux
+    goarch: amd64
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/amd64"
+    image_templates:
+      - "ghcr.io/dboxed/dboxed-volume:{{ .Version }}-amd64"
+  - id: linux-arm64
+    goos: linux
+    goarch: arm64
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/arm64"
+    image_templates:
+      - "ghcr.io/dboxed/dboxed-volume:{{ .Version }}-arm64"
+docker_manifests:
+  - name_template: ghcr.io/dboxed/dboxed-volume:nightly
+    image_templates:
+      - "ghcr.io/dboxed/dboxed-volume:{{ .Version }}-amd64"
+      - "ghcr.io/dboxed/dboxed-volume:{{ .Version }}-arm64"
+    skip_push: "{{ not .IsNightly }}"
+  - name_template: ghcr.io/dboxed/dboxed-volume:{{ .Version }}
+    image_templates:
+      - "ghcr.io/dboxed/dboxed-volume:{{ .Version }}-amd64"
+      - "ghcr.io/dboxed/dboxed-volume:{{ .Version }}-arm64"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+nightly:
+  publish_release: true
+  keep_single_release: true
+
+release:
+  github:
+    owner: dboxed
+    name: dboxed-volume
+  make_latest: "{{ not .IsNightly }}"
+  footer: >-
+
+    ---
+
+    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
