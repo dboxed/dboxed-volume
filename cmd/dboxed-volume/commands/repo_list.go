@@ -15,7 +15,7 @@ type RepoListCmd struct {
 func (cmd *RepoListCmd) Run(g *flags.GlobalFlags) error {
 	ctx := context.Background()
 
-	c, err := client.New("", nil)
+	c, err := client.New(g.ApiUrl, g.ApiToken)
 	if err != nil {
 		return err
 	}

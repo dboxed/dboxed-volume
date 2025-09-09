@@ -8,13 +8,12 @@ import (
 )
 
 type LoginCmd struct {
-	Url string `help:"Specify the API url" required:""`
 }
 
 func (cmd *LoginCmd) Run(g *flags.GlobalFlags) error {
 	ctx := context.Background()
 
-	c, err := client.New(cmd.Url, nil)
+	c, err := client.New(g.ApiUrl, g.ApiToken)
 	if err != nil {
 		return err
 	}

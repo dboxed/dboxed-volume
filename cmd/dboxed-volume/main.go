@@ -41,6 +41,7 @@ func Execute() {
 			Compact: true,
 			Summary: true,
 		}),
+		kong.DefaultEnvars("DBOXED_VOLUME"),
 	)
 
 	err := ctx.Run(&cli.GlobalFlags)
