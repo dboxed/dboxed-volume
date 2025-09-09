@@ -19,7 +19,8 @@ type VolumeServe struct {
 	RepositoryId int64
 	VolumeId     int64
 
-	PrevLockId *string
+	PrevLockId     *string
+	UpdateLockIdCb func(newLockId string) error
 
 	Image          string
 	Mount          string
@@ -108,6 +109,14 @@ func (vs *VolumeServe) lockVolume(ctx context.Context, prevLockId *string) error
 	vs.volume, err = vs.Client.VolumeLock(ctx, vs.RepositoryId, vs.VolumeId, lockRequest)
 	if err != nil {
 		return err
+	}
+	if prevLockId == nil || *prevLockId != *vs.volume.LockId {
+		if vs.UpdateLockIdCb != nil {
+			err = vs.UpdateLockIdCb(*vs.volume.LockId)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	vs.log.Info("volume locked", slog.Any("lockId", *vs.volume.LockId))
 	return nil

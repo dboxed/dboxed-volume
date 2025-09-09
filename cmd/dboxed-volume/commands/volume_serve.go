@@ -3,8 +3,10 @@ package commands
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
+	"github.com/dboxed/dboxed-common/util"
 	"github.com/dboxed/dboxed-volume/cmd/dboxed-volume/flags"
 	"github.com/dboxed/dboxed-volume/pkg/client"
 	"github.com/dboxed/dboxed-volume/pkg/server/models"
@@ -16,6 +18,7 @@ type VolumeServeCmd struct {
 	Volume string `help:"Specify volume volume" required:""`
 
 	PrevLockId *string `help:"Specify previous lock id"`
+	LockIdFile *string `help:"Specify the file to load and store the lock id"`
 
 	Image          string `help:"Specify the location of the volume image" type:"path" required:""`
 	Mount          string `help:"Specify where to mount the volume" type:"existingdir" required:""`
@@ -43,11 +46,30 @@ func (cmd *VolumeServeCmd) Run(g *flags.GlobalFlags) error {
 		return err
 	}
 
+	prevLockId := cmd.PrevLockId
+	if prevLockId == nil && cmd.LockIdFile != nil {
+		b, err := os.ReadFile(*cmd.LockIdFile)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			prevLockId = util.Ptr(string(b))
+		}
+	}
+	updateLockId := func(newLockId string) error {
+		if cmd.LockIdFile == nil {
+			return nil
+		}
+		return util.AtomicWriteFile(*cmd.LockIdFile, []byte(newLockId), 0600)
+	}
+
 	vs := volume_serve.VolumeServe{
 		Client:            c,
 		RepositoryId:      r.ID,
 		VolumeId:          v.ID,
-		PrevLockId:        cmd.PrevLockId,
+		PrevLockId:        prevLockId,
+		UpdateLockIdCb:    updateLockId,
 		Image:             cmd.Image,
 		Mount:             cmd.Mount,
 		SnapshotMount:     cmd.SnapshotMount,
